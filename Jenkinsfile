@@ -4,6 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME  = "shivang2111/myapp"
         IMAGE_TAG   = "${BUILD_NUMBER}"
+        DEPLOY_REPO = "github.com/shivang123/myapp-deploy.git"
     }
 
     stages {
@@ -48,8 +49,11 @@ pipeline {
                         def DEPLOY_REPO = "github.com/shivang123/myapp-deploy.git"
 
                         sh """
+                            echo "Cloning repo: https://$GIT_USER:\$GIT_PASS@$DEPLOY_REPO"
                             rm -rf myapp-deploy
-                            git clone https://$GIT_USER:$GIT_PASS@${DEPLOY_REPO}
+                            
+
+                            git clone https://$GIT_USER:$GIT_PASS@$DEPLOY_REPO
                             cd myapp-deploy
 
                             # Update image tag in deployment.yaml
