@@ -45,7 +45,7 @@ pipeline {
                 )]) {
                     script {
                         // Set deploy repo URL
-                        def DEPLOY_REPO = "https://github.com/shivang123/myapp-deploy.git"
+                        def DEPLOY_REPO = "github.com/shivang123/myapp-deploy.git"
 
                         sh """
                             rm -rf myapp-deploy
