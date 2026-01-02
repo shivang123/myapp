@@ -3,12 +3,13 @@ pipeline {
 
     environment {
         IMAGE_NAME = "shivang2111/myapp"
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
+        DEPLOY_REPO = "github.com/shivang123/myapp-deploy.git"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout App Repo') {
             steps {
                 checkout scm
             }
@@ -38,7 +39,27 @@ pipeline {
 
         stage('Update ArgoCD Deployment Repo') {
             steps {
-                echo "Next step: update myapp-deploy repo"
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-creds',
+                    usernameVariable: 'GIT_USER',
+                    passwordVariable: 'GIT_PASS'
+                )]) {
+                    sh '''
+                      rm -rf myapp-deploy
+
+                      git clone https://$GIT_USER:$GIT_PASS@$DEPLOY_REPO
+                      cd myapp-deploy
+
+                      sed -i "s|image: shivang2111/myapp:.*|image: shivang2111/myapp:${IMAGE_TAG}|g" k8s/deployment.yaml
+
+                      git config user.name "Jenkins CI"
+                      git config user.email "jenkins@ci.local"
+
+                      git add k8s/deployment.yaml
+                      git commit -m "Update myapp image to ${IMAGE_TAG}"
+                      git push origin main
+                    '''
+                }
             }
         }
     }
