@@ -2,63 +2,62 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_REGISTRY = "shivang2111"
-        IMAGE_NAME = "myapp"
-        IMAGE_TAG = "latest"
+        IMAGE_NAME  = "shivang2111/myapp"
+        IMAGE_TAG   = "${BUILD_NUMBER}"
+        DEPLOY_REPO = "git@github.com:shivang123/myapp-deploy.git"
     }
 
     stages {
-        stage('Checkout App Repo') {
+
+        stage('Checkout Source Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/shivang123/myapp.git'
+                git branch: 'main',
+                    credentialsId: 'github-ssh',
+                    url: 'git@github.com:shivang123/myapp.git'
             }
         }
 
-        stage('Build Maven Project') {
+        stage('Build Application') {
             steps {
-                sh './mvnw clean package -DskipTests'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Build & Push') {
             steps {
-                sh "docker build -t $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG ."
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "echo $PASS | docker login -u $USER --password-stdin"
-                    sh "docker push $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    docker login -u $DOCKER_USER -p $DOCKER_PASS
+                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                    docker push $IMAGE_NAME:$IMAGE_TAG
+                    '''
                 }
             }
         }
 
-        stage('Update Deployment YAML in myapp-deploy Repo') {
+        stage('Update ArgoCD Deployment Repo') {
             steps {
-                dir('myapp-deploy') {
-                    git branch: 'main', url: 'https://github.com/shivang123/myapp-deploy.git'
+                sshagent(['github-ssh']) {
+                    sh '''
+                    rm -rf myapp-deploy
+                    git clone git@github.com:shivang123/myapp-deploy.git
+                    cd myapp-deploy
 
-                    sh """
-                    sed -i 's|image:.*|image: $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG|' k8s/deployment.yaml
-                    git config user.email "jenkins@mycompany.com"
-                    git config user.name "Jenkins CI"
-                    git add k8s/deployment.yaml
-                    git commit -m "Update image to $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
-                    git push origin main
-                    """
+                    sed -i "s|image: .*|image: shivang2111/myapp:${IMAGE_TAG}|g" deployment.yaml
+
+                    git config user.email "jenkins@ci.local"
+                    git config user.name "jenkins"
+
+                    git add deployment.yaml
+                    git commit -m "Update image to ${IMAGE_TAG}"
+                    git push
+                    '''
                 }
             }
-        }
-    }
-
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed.'
         }
     }
 }
