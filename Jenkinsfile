@@ -2,24 +2,21 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME  = "shivang2111/myapp"
-        IMAGE_TAG   = "${BUILD_NUMBER}"
-        DEPLOY_REPO = "git@github.com:shivang123/myapp-deploy.git"
+        IMAGE_NAME = "shivang2111/myapp"
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout Source Code') {
+        stage('Checkout') {
             steps {
-                git branch: 'main',
-                    credentialsId: 'github-ssh',
-                    url: 'git@github.com:shivang123/myapp.git'
+                checkout scm
             }
         }
 
         stage('Build Application') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh './mvnw clean package -DskipTests'
             }
         }
 
@@ -31,9 +28,9 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                    docker login -u $DOCKER_USER -p $DOCKER_PASS
-                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                    docker push $IMAGE_NAME:$IMAGE_TAG
+                      docker login -u $DOCKER_USER -p $DOCKER_PASS
+                      docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                      docker push $IMAGE_NAME:$IMAGE_TAG
                     '''
                 }
             }
@@ -41,22 +38,7 @@ pipeline {
 
         stage('Update ArgoCD Deployment Repo') {
             steps {
-                sshagent(['github-ssh']) {
-                    sh '''
-                    rm -rf myapp-deploy
-                    git clone git@github.com:shivang123/myapp-deploy.git
-                    cd myapp-deploy
-
-                    sed -i "s|image: .*|image: shivang2111/myapp:${IMAGE_TAG}|g" deployment.yaml
-
-                    git config user.email "jenkins@ci.local"
-                    git config user.name "jenkins"
-
-                    git add deployment.yaml
-                    git commit -m "Update image to ${IMAGE_TAG}"
-                    git push
-                    '''
-                }
+                echo "Next step: update myapp-deploy repo"
             }
         }
     }
